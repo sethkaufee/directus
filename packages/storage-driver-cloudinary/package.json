@@ -21,6 +21,8 @@
 		"dist"
 	],
 	"scripts": {
+		"artifactregistry-login": "google-artifactregistry-auth",
+		"prepublishOnly": "pnpm run artifactregistry-login",
 		"build": "tsc --project tsconfig.prod.json",
 		"dev": "tsc --watch",
 		"test": "vitest --watch=false"
@@ -28,6 +30,7 @@
 	"dependencies": {
 		"@directus/storage": "workspace:*",
 		"@directus/utils": "workspace:*",
+		"cloudinary": "^1.38.0",
 		"p-queue": "7.3.4",
 		"undici": "5.22.1"
 	},
@@ -37,5 +40,9 @@
 		"@vitest/coverage-c8": "0.31.1",
 		"typescript": "5.0.4",
 		"vitest": "0.31.1"
+	},
+	"publishConfig": {
+		"registry": "https://europe-west1-npm.pkg.dev/rb-appkit-staging/directus-core-packages/",
+		"access": "restricted"
 	}
 }

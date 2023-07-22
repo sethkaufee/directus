@@ -7,7 +7,11 @@ import { Readable } from 'node:stream';
 import PQueue from 'p-queue';
 import type { RequestInit } from 'undici';
 import { fetch, FormData } from 'undici';
+import pkg from 'cloudinary';
+import type { ConfigOptions } from 'cloudinary';
 import { IMAGE_EXTENSIONS, VIDEO_EXTENSIONS } from './constants.js';
+
+const { v2: cloudinary } = pkg;
 
 export type DriverCloudinaryConfig = {
 	root?: string;
@@ -23,17 +27,33 @@ export class DriverCloudinary implements Driver {
 	private apiSecret: string;
 	private cloudName: string;
 	private accessMode: 'public' | 'authenticated';
+	private _cloudinary: typeof cloudinary;
+	private _cloudinary_config: ConfigOptions;
 
 	constructor(config: DriverCloudinaryConfig) {
+		// config.root = config.root || DEFAULT_ROOT;
+		// console.log(config.root);
 		this.root = config.root ? normalizePath(config.root, { removeLeading: true }) : '';
 		this.apiKey = config.apiKey;
 		this.apiSecret = config.apiSecret;
 		this.cloudName = config.cloudName;
 		this.accessMode = config.accessMode;
+
+		this._cloudinary_config = cloudinary.config({
+			cloud_name: this.cloudName,
+			api_key: this.apiKey,
+			api_secret: this.apiSecret,
+		});
+
+		this._cloudinary = cloudinary;
+	}
+
+	get cloudinary() {
+		return this._cloudinary;
 	}
 
 	private fullPath(filepath: string) {
-		return normalizePath(join(this.root, filepath), { removeLeading: true });
+		return normalizePath(join(this.root, parse(filepath).base), { removeLeading: true });
 	}
 
 	private toFormUrlEncoded(obj: Record<string, string>, options?: { sort: boolean }) {
@@ -51,6 +71,7 @@ export class DriverCloudinary implements Driver {
 	 * @see https://cloudinary.com/documentation/signatures
 	 */
 	private getFullSignature(payload: Record<string, string>) {
+		this.cloudinary.utils.api_sign_request({}, this._cloudinary_config.api_secret as string);
 		const denylist = ['file', 'cloud_name', 'resource_type', 'api_key'];
 
 		const signaturePayload = Object.fromEntries(
@@ -95,9 +116,11 @@ export class DriverCloudinary implements Driver {
 	 * on the other hand requires the extension to be present.
 	 */
 	private getPublicId(filepath: string) {
+		const { name /*dir*/ } = parse(filepath);
+
 		const resourceType = this.getResourceType(filepath);
 		if (resourceType === 'raw') return filepath;
-		return parse(filepath).name;
+		return name;
 	}
 
 	/**
@@ -138,18 +161,22 @@ export class DriverCloudinary implements Driver {
 		const publicId = this.getPublicId(fullPath);
 
 		const parameters = {
-			public_id: publicId,
+			public_id: join(this.root, publicId),
+			// resource_type: resourceType,
 			type: 'upload',
-			api_key: this.apiKey,
-			timestamp: this.getTimestamp(),
+			// api_key: this.apiKey,
+			timestamp: Date.now().toString(),
+			folder: this.root,
 		};
 
-		const signature = this.getFullSignature(parameters);
-
-		const body = this.toFormUrlEncoded({
-			...parameters,
-			signature,
+		const req_sig = this.cloudinary.utils.sign_request(parameters, {
+			api_key: this.apiKey,
+			api_secret: this.apiSecret,
+			cloud_name: this.cloudName,
+			resource_type: resourceType,
 		});
+
+		const body = this.toFormUrlEncoded(req_sig, { sort: true });
 
 		const url = `https://api.cloudinary.com/v1_1/${this.cloudName}/${resourceType}/explicit`;
 
@@ -190,6 +217,7 @@ export class DriverCloudinary implements Driver {
 			to_public_id: this.getPublicId(fullDest),
 			api_key: this.apiKey,
 			timestamp: this.getTimestamp(),
+			asset_folder: this.root,
 		};
 
 		const signature = this.getFullSignature(parameters);
@@ -224,13 +252,22 @@ export class DriverCloudinary implements Driver {
 
 		const uploadParameters = {
 			timestamp: this.getTimestamp(),
-			api_key: this.apiKey,
-			type: 'upload',
 			access_mode: this.accessMode,
 			public_id: this.getPublicId(fullPath),
+			use_asset_folder_as_public_id_prefix: false,
+			asset_folder: this.root,
+			folder: this.root,
 		};
 
-		const signature = this.getFullSignature(uploadParameters);
+		const req_sig = this.cloudinary.utils.sign_request(uploadParameters, {
+			type: 'upload',
+			api_key: this.apiKey,
+			api_secret: this.apiSecret,
+			resource_type: resourceType,
+			cloud_name: this.cloudName,
+		});
+
+		const parameters = { timestamp: uploadParameters.timestamp, ...req_sig };
 
 		let currentChunkSize = 0;
 		let totalSize = 0;
@@ -253,10 +290,7 @@ export class DriverCloudinary implements Driver {
 					blob: new Blob(chunks),
 					bytesOffset: uploaded,
 					bytesTotal: -1,
-					parameters: {
-						signature,
-						...uploadParameters,
-					},
+					parameters,
 				};
 
 				queue
@@ -280,10 +314,7 @@ export class DriverCloudinary implements Driver {
 					blob: new Blob(chunks),
 					bytesOffset: uploaded,
 					bytesTotal: totalSize,
-					parameters: {
-						signature,
-						...uploadParameters,
-					},
+					parameters: parameters,
 				})
 			)
 			.catch((err) => {
@@ -298,12 +329,12 @@ export class DriverCloudinary implements Driver {
 	}
 
 	private async uploadChunk({
-		resourceType,
-		blob,
-		bytesOffset,
-		bytesTotal,
-		parameters,
-	}: {
+															resourceType,
+															blob,
+															bytesOffset,
+															bytesTotal,
+															parameters,
+														}: {
 		resourceType: string;
 		blob: Blob;
 		bytesOffset: number;
@@ -339,32 +370,16 @@ export class DriverCloudinary implements Driver {
 
 	async delete(filepath: string) {
 		const fullPath = this.fullPath(filepath);
-		const resourceType = this.getResourceType(fullPath);
 		const publicId = this.getPublicId(fullPath);
-		const url = `https://api.cloudinary.com/v1_1/${this.cloudName}/${resourceType}/destroy`;
 
-		const parameters = {
-			timestamp: this.getTimestamp(),
-			api_key: this.apiKey,
-			resource_type: resourceType,
-			public_id: publicId,
-		};
-
-		const signature = this.getFullSignature(parameters);
-
-		await fetch(url, {
-			method: 'POST',
-			body: this.toFormUrlEncoded({
-				...parameters,
-				signature,
-			}),
-			headers: {
-				'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
-			},
+		await this.cloudinary.uploader.destroy(publicId, { type: 'upload' }).then((r: any) => {
+			if (!(r?.result === 'ok')) {
+				throw new Error(JSON.stringify({ msg: r.result, publicId, type: 'upload' }));
+			}
 		});
 	}
 
-	async *list(prefix = '') {
+	async* list(prefix = '') {
 		const fullPath = this.fullPath(prefix);
 		const publicId = this.getPublicId(fullPath);
 
