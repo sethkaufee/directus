@@ -1602,6 +1602,9 @@ importers:
       '@directus/utils':
         specifier: workspace:*
         version: link:../utils
+      glob-to-regexp:
+        specifier: ^0.4.1
+        version: 0.4.1
       p-queue:
         specifier: 7.3.4
         version: 7.3.4
@@ -1615,6 +1618,9 @@ importers:
       '@ngneat/falso':
         specifier: 6.4.0
         version: 6.4.0
+      '@types/glob-to-regexp':
+        specifier: ^0.4.1
+        version: 0.4.1
       '@vitest/coverage-c8':
         specifier: 0.31.1
         version: 0.31.1(vitest@0.31.1)
@@ -8618,6 +8624,10 @@ packages:
   /@types/geojson@7946.0.10:
     resolution: {integrity: sha512-Nmh0K3iWQJzniTuPRcJn5hxXkfB1T1pgB89SBig5PlJQU5yocazeu4jATJlaA0GYFKWMqDdvYemoSnF2pXgLVA==}
 
+  /@types/glob-to-regexp@0.4.1:
+    resolution: {integrity: sha512-S0mIukll6fbF0tvrKic/jj+jI8SHoSvGU+Cs95b/jzZEnBYCbj+7aJtQ9yeABuK3xP1okwA3jEH9qIRayijnvQ==}
+    dev: true
+
   /@types/glob@8.1.0:
     resolution: {integrity: sha512-IO+MJPVhoqz+28h1qLAcBEH2+xHMK6MTyHJc7MTnnYb6wsoLR29POVGJ7LycmVXIqyy/4/2ShP5sUwTXuOwb/w==}
     dependencies:
@@ -13749,7 +13759,6 @@ packages:
 
   /glob-to-regexp@0.4.1:
     resolution: {integrity: sha512-lkX1HJXwyMcprw/5YUZc2s7DrpAiHB21/V+E1rHUrVNokkvB6bqMzT0VfV6/86ZNabt1k14YOIaT7nDvOX3Iiw==}
-    dev: true
 
   /glob@10.3.3:
     resolution: {integrity: sha512-92vPiMb/iqpmEgsOoIDvTjc50wf9CCCvMzsi6W0JLPeUKE8TWP1a73PgqSrqy7iAZxaSD1YdzU7QZR5LF51MJw==}
