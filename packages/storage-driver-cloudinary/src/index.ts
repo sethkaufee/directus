@@ -4,10 +4,20 @@ import { Blob, Buffer } from 'node:buffer';
 import { createHash } from 'node:crypto';
 import { extname, join, parse } from 'node:path';
 import { Readable } from 'node:stream';
+import globToRegExp from 'glob-to-regexp';
 import PQueue from 'p-queue';
 import type { RequestInit } from 'undici';
 import { FormData, fetch } from 'undici';
 import { IMAGE_EXTENSIONS, VIDEO_EXTENSIONS } from './constants.js';
+
+type PresetName = string;
+type PresetGlob = string;
+
+type Entry = readonly [PresetName, RegExp | PresetGlob]
+type Entries = readonly Entry[];
+type PresetMap = Record<PresetName, PresetGlob>;
+
+type UploadPresetOptions = PresetMap | Entries | string | null;
 
 export type DriverCloudinaryConfig = {
 	root?: string;
@@ -15,6 +25,7 @@ export type DriverCloudinaryConfig = {
 	apiKey: string;
 	apiSecret: string;
 	accessMode: 'public' | 'authenticated';
+	uploadPresets?: UploadPresetOptions;
 };
 
 export class DriverCloudinary implements Driver {
@@ -23,6 +34,7 @@ export class DriverCloudinary implements Driver {
 	private apiSecret: string;
 	private cloudName: string;
 	private accessMode: 'public' | 'authenticated';
+	private uploadPresets: Map<PresetName, RegExp> | null;
 
 	constructor(config: DriverCloudinaryConfig) {
 		this.root = config.root ? normalizePath(config.root, { removeLeading: true }) : '';
@@ -30,6 +42,7 @@ export class DriverCloudinary implements Driver {
 		this.apiSecret = config.apiSecret;
 		this.cloudName = config.cloudName;
 		this.accessMode = config.accessMode;
+		this.uploadPresets = this.parsePresetConfig(config.uploadPresets);
 	}
 
 	private fullPath(filepath: string) {
@@ -142,6 +155,37 @@ export class DriverCloudinary implements Driver {
 		return Readable.fromWeb(response.body);
 	}
 
+	private parsePresetConfig(options: UploadPresetOptions | undefined): Map<PresetName, RegExp> | null {
+		if (!options) return null;
+
+		const presetMap = new Map<PresetName, RegExp>();
+		if (typeof options === 'string') presetMap.set(options, toRegex('*'));
+		else if (Array.isArray(options)) options.forEach(addPreset);
+		else if (typeof options === 'object') Object.entries(options).forEach(addPreset);
+
+		function addPreset(entry: Entry): void {
+			const [preset, pattern]: Entry = entry;
+			presetMap.set(preset, toRegex(pattern));
+		}
+
+		function toRegex(glob: RegExp | string) {
+			if (glob instanceof RegExp) return new RegExp(glob, 'i');
+			return globToRegExp(glob, { flags: 'i', extended: true });
+		}
+
+		return presetMap.size > 0 ? presetMap : null;
+	}
+
+	private getUploadPreset(filename: string): string | null {
+		if (!this.uploadPresets) return null;
+
+		for (const [preset, pattern] of this.uploadPresets.entries()) {
+			if (pattern.test(filename)) return preset;
+		}
+
+		return null;
+	}
+
 	async stat(filepath: string) {
 		const fullPath = this.fullPath(filepath);
 		const resourceType = this.getResourceType(fullPath);
@@ -233,6 +277,7 @@ export class DriverCloudinary implements Driver {
 		const fullPath = this.fullPath(filepath);
 		const resourceType = this.getResourceType(fullPath);
 		const folderPath = this.getFolderPath(fullPath);
+		const uploadPreset = this.getUploadPreset(fullPath);
 
 		const uploadParameters = {
 			timestamp: this.getTimestamp(),
@@ -240,6 +285,7 @@ export class DriverCloudinary implements Driver {
 			type: 'upload',
 			access_mode: this.accessMode,
 			public_id: this.getPublicId(fullPath),
+			...(uploadPreset ? { upload_preset: uploadPreset } : {}),
 			...(folderPath
 				? {
 						asset_folder: folderPath,

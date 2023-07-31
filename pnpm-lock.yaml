@@ -1614,6 +1614,9 @@ importers:
       '@directus/utils':
         specifier: workspace:*
         version: link:../utils
+      glob-to-regexp:
+        specifier: ^0.4.1
+        version: 0.4.1
       p-queue:
         specifier: 7.3.4
         version: 7.3.4
@@ -1627,6 +1630,9 @@ importers:
       '@ngneat/falso':
         specifier: 6.4.0
         version: 6.4.0
+      '@types/glob-to-regexp':
+        specifier: ^0.4.1
+        version: 0.4.3
       '@vitest/coverage-c8':
         specifier: 0.31.1
         version: 0.31.1(vitest@0.31.1)
