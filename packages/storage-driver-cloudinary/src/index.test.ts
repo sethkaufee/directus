@@ -81,6 +81,7 @@ beforeEach(() => {
 			apiSecret: randAlphaNumeric({ length: 27 }).join(''),
 			cloudName: randCloudName(),
 			accessMode: rand(['public', 'authenticated']),
+			uploadPresets: null,
 		},
 		path: {
 			input: randUnique() + randFilePath(),

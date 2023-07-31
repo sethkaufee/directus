@@ -28,12 +28,14 @@
 	"dependencies": {
 		"@directus/storage": "workspace:*",
 		"@directus/utils": "workspace:*",
+		"glob-to-regexp": "^0.4.1",
 		"p-queue": "7.3.4",
 		"undici": "5.22.1"
 	},
 	"devDependencies": {
 		"@directus/tsconfig": "workspace:*",
 		"@ngneat/falso": "6.4.0",
+		"@types/glob-to-regexp": "^0.4.1",
 		"@vitest/coverage-c8": "0.31.1",
 		"typescript": "5.0.4",
 		"vitest": "0.31.1"
